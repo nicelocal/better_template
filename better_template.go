@@ -41,12 +41,12 @@ func (e *BetterTemplate) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *
 	question := r.Question[0]
 	matches := e.matcher.Match(strings.TrimSuffix(question.Name, "."))
 
-	if len(matches) == 0 {
+	if len(matches) == 0 || question.Qclass != dns.ClassINET {
 		return plugin.NextOrFailure(e.Name(), e.Next, ctx, w, r)
 	}
 
 	isV4 := question.Qtype == dns.TypeA
-	if (!isV4 && question.Qtype != dns.TypeAAAA) || question.Qclass != dns.ClassINET {
+	if !isV4 && question.Qtype != dns.TypeAAAA {
 		return dns.RcodeSuccess, nil
 	}
 
