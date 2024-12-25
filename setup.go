@@ -27,18 +27,22 @@ func setup(c *caddy.Controller) error {
 		if !c.NextBlock() {
 			return plugin.Error("better_template", c.SyntaxErr("{"))
 		}
+		if !c.Next() {
+			return plugin.Error("better_template", c.ArgErr())
+		}
 		e := &entry{make([]addressTtl, 0), make([]addressTtl, 0), ""}
 		for {
 			dst := c.Val()
 			if dst == "}" {
+				c.NextLine()
 				break
 			}
 			ip := net.ParseIP(dst)
 			ttl := uint32(60)
-			if c.NextLine() {
+			if c.NextArg() {
 				tmp, err := strconv.Atoi(c.Val())
 				if err != nil {
-					return plugin.Error("better_template", c.ArgErr())
+					return plugin.Error("better_template", err)
 				}
 				if tmp > 2147483647 || ttl < 0 {
 					return plugin.Error("better_template", c.Err("Invalid TTL"))
