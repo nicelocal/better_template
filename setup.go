@@ -8,7 +8,6 @@ import (
 	"github.com/coredns/caddy"
 	"github.com/coredns/coredns/core/dnsserver"
 	"github.com/coredns/coredns/plugin"
-	"github.com/coredns/coredns/plugin/pkg/upstream"
 	"github.com/v2fly/v2ray-core/v5/common/strmatcher"
 )
 
@@ -21,7 +20,7 @@ func setup(c *caddy.Controller) error {
 		return plugin.Error("better_template", c.SyntaxErr("{"))
 	}
 	domainMatcher := strmatcher.NewMphIndexMatcher()
-	lookup := make(map[uint32]addresses)
+	lookup := make(map[uint32]*entry)
 
 	for c.Val() != "}" {
 		m := c.Val()
@@ -86,7 +85,7 @@ func setup(c *caddy.Controller) error {
 
 	// Add the Plugin to CoreDNS, so Servers can use it in their plugin chain.
 	dnsserver.GetConfig(c).AddPlugin(func(next plugin.Handler) plugin.Handler {
-		return &BetterTemplate{Next: next, lookup: lookup, matcher: domainMatcher, upstream: upstream.New()}
+		return &BetterTemplate{Next: next, lookup: lookup, matcher: domainMatcher}
 	})
 
 	// All OK, return a nil error.
