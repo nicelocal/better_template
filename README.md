@@ -15,7 +15,8 @@ And use the following example Corefile:
 ```
 . {
     better_template {
-        # Fallthrough is always enabled for multiple matching blocks
+        # Fallthrough to the next match block is always enabled for multiple matching blocks
+        # Fallthrough to the next plugin is always disabled if at least one block matches
 
         example.com { # Exact match
             192.168.1.1 [ TTL ]
