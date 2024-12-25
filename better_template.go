@@ -87,6 +87,8 @@ func (e *BetterTemplate) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *
 		}
 	}
 
+	w.WriteMsg(msg)
+
 	return dns.RcodeSuccess, nil
 }
 
