@@ -27,7 +27,7 @@ And use the following example Corefile:
         regexp:exampl?e.com { # Regex match
             [...]
         }
-        regexp:le.com { # Keyword match (domain contains)
+        keyword:le.com { # Keyword match (domain contains)
             [...]
         }
     }
