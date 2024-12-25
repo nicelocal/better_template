@@ -15,13 +15,14 @@ And use the following example Corefile:
 ```
 . {
     better_template {
-        full:example.com { # Exact match
+        # Fallthrough is always enabled for multiple matching blocks
+
+        example.com { # Exact match
             192.168.1.1 [ TTL ]
             ff::123 [ TTL ]
             [...]
-            [fallthrough] # If exists, fallthrough to next block (never fallthrough to next plugin)
         }
-        example.com { # Exact match or subdomains
+        subdomain:example.com { # Subdomains only match
             [...]
         }
         regexp:exampl?e.com { # Regex match

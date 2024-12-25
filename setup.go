@@ -27,17 +27,11 @@ func setup(c *caddy.Controller) error {
 		if !c.NextBlock() {
 			return plugin.Error("better_template", c.SyntaxErr("{"))
 		}
-		recordsV4 := make([]addressTtl, 0)
-		recordsV6 := make([]addressTtl, 0)
-		fallT := false
+		e := &entry{make([]addressTtl, 0), make([]addressTtl, 0), ""}
 		for {
 			dst := c.Val()
 			if dst == "}" {
 				break
-			}
-			if dst == "fallthrough" {
-				fallT = true
-				continue
 			}
 			ip := net.ParseIP(dst)
 			ttl := uint32(60)
@@ -52,27 +46,26 @@ func setup(c *caddy.Controller) error {
 				ttl = uint32(tmp)
 			}
 			if temp := ip.To4(); temp != nil {
-				recordsV4 = append(recordsV4, addressTtl{temp, ttl})
+				e.ipv4 = append(e.ipv4, addressTtl{temp, ttl})
 			} else {
-				recordsV6 = append(recordsV6, addressTtl{ip, ttl})
+				e.ipv6 = append(e.ipv6, addressTtl{ip, ttl})
 			}
 			if !c.NextLine() {
 				return plugin.Error("better_template", c.ArgErr())
 			}
 		}
 
-		t := strmatcher.Domain
+		t := strmatcher.Full
 		if strings.HasPrefix(m, "regexp:") {
 			t = strmatcher.Regex
 			m = m[7:]
 		} else if strings.HasPrefix(m, "keyword:") {
 			t = strmatcher.Substr
 			m = m[8:]
-		} else if strings.HasPrefix(m, "full:") {
-			t = strmatcher.Full
-			m = m[4:]
-		} else if strings.HasPrefix(m, "domain:") {
-			m = m[7:]
+		} else if strings.HasPrefix(m, "subdomain:") {
+			t = strmatcher.Domain
+			m = m[10:]
+			e.isSubdomainMatch = m
 		}
 
 		matcher, err := t.New(m)
@@ -80,7 +73,7 @@ func setup(c *caddy.Controller) error {
 			return plugin.Error("better_template", err)
 		}
 
-		lookup[domainMatcher.Add(matcher)] = &entry{recordsV4, recordsV6, fallT}
+		lookup[domainMatcher.Add(matcher)] = e
 	}
 
 	domainMatcher.Build()

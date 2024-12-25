@@ -24,9 +24,10 @@ type addressTtl struct {
 	ttl uint32
 }
 type entry struct {
-	ipv4  []addressTtl
-	ipv6  []addressTtl
-	fallT bool
+	ipv4 []addressTtl
+	ipv6 []addressTtl
+
+	isSubdomainMatch string
 }
 
 type BetterTemplate struct {
@@ -39,9 +40,23 @@ type BetterTemplate struct {
 // in a Server.
 func (e *BetterTemplate) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (int, error) {
 	question := r.Question[0]
-	matches := e.matcher.Match(strings.TrimSuffix(question.Name, "."))
 
-	if len(matches) == 0 || question.Qclass != dns.ClassINET {
+	if question.Qclass != dns.ClassINET {
+		return plugin.NextOrFailure(e.Name(), e.Next, ctx, w, r)
+	}
+	qName := strings.TrimSuffix(question.Name, ".")
+	matches := e.matcher.Match(qName)
+
+	entries := make([]*entry, 0, len(matches))
+	for _, m := range matches {
+		entry := e.lookup[m]
+		if qName == entry.isSubdomainMatch {
+			continue
+		}
+		entries = append(entries, entry)
+	}
+
+	if len(entries) == 0 {
 		return plugin.NextOrFailure(e.Name(), e.Next, ctx, w, r)
 	}
 
@@ -55,8 +70,7 @@ func (e *BetterTemplate) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *
 	msg.Authoritative = true
 	msg.RecursionAvailable = true
 
-	for _, m := range matches {
-		entry := e.lookup[m]
+	for _, entry := range entries {
 		if isV4 {
 			for _, ip := range entry.ipv4 {
 				msg.Answer = append(msg.Answer, &dns.A{
@@ -81,9 +95,6 @@ func (e *BetterTemplate) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *
 					AAAA: ip.ip,
 				})
 			}
-		}
-		if !entry.fallT {
-			break
 		}
 	}
 
