@@ -83,6 +83,8 @@ func setup(c *caddy.Controller) error {
 		lookup[domainMatcher.Add(matcher)] = &entry{recordsV4, recordsV6, fallT}
 	}
 
+	domainMatcher.Build()
+
 	// Add the Plugin to CoreDNS, so Servers can use it in their plugin chain.
 	dnsserver.GetConfig(c).AddPlugin(func(next plugin.Handler) plugin.Handler {
 		return &BetterTemplate{Next: next, lookup: lookup, matcher: domainMatcher}
