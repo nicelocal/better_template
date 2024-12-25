@@ -74,7 +74,7 @@ func (e *BetterTemplate) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *
 				msg.Answer = append(msg.Answer, &dns.AAAA{
 					Hdr: dns.RR_Header{
 						Name:   question.Name,
-						Rrtype: dns.TypeA,
+						Rrtype: dns.TypeAAAA,
 						Class:  question.Qclass,
 						Ttl:    ip.ttl,
 					},
