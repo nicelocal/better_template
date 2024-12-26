@@ -46,6 +46,9 @@ func (e *BetterTemplate) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *
 	}
 	qName := strings.TrimSuffix(question.Name, ".")
 	matches := e.matcher.Match(qName)
+	if len(matches) == 0 {
+		return plugin.NextOrFailure(e.Name(), e.Next, ctx, w, r)
+	}
 
 	entries := make([]*entry, 0, len(matches))
 	for _, m := range matches {
