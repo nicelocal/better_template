@@ -14,17 +14,20 @@ import (
 func init() { plugin.Register("better_template", setup) }
 
 func setup(c *caddy.Controller) error {
-	c.Next()
-
-	if !c.NextBlock() {
-		return plugin.Error("better_template", c.SyntaxErr("{"))
-	}
 	domainMatcher := strmatcher.NewMphIndexMatcher()
 	lookup := make(map[uint32]*entry)
 
-	for c.Val() != "}" {
+	c.Next()
+	for c.Val() != "" {
+		if c.Val() == "better_template" {
+			if c.Next() && c.Val() != "{" {
+				return plugin.Error("better_template", c.SyntaxErr("{"))
+			}
+			c.Next()
+		}
+
 		m := c.Val()
-		if !c.NextBlock() {
+		if c.Next() && c.Val() != "{" {
 			return plugin.Error("better_template", c.SyntaxErr("{"))
 		}
 		if !c.Next() {
@@ -38,6 +41,9 @@ func setup(c *caddy.Controller) error {
 				break
 			}
 			ip := net.ParseIP(dst)
+			if ip == nil {
+				return plugin.Error("better_template", c.ArgErr())
+			}
 			ttl := uint32(60)
 			if c.NextArg() {
 				tmp, err := strconv.Atoi(c.Val())
@@ -81,6 +87,10 @@ func setup(c *caddy.Controller) error {
 		}
 
 		lookup[domainMatcher.Add(matcher)] = e
+
+		if c.Val() == "}" && !c.Next() {
+			break
+		}
 	}
 
 	domainMatcher.Build()
