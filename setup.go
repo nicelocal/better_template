@@ -70,6 +70,9 @@ func setup(c *caddy.Controller) error {
 			t = strmatcher.Domain
 			m = m[10:]
 			e.isSubdomainMatch = m
+		} else if strings.HasPrefix(m, "domain:") {
+			t = strmatcher.Domain
+			m = m[7:]
 		}
 
 		matcher, err := t.New(m)

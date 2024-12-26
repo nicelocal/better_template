@@ -23,7 +23,10 @@ And use the following example Corefile:
             ff::123 [ TTL ]
             [...]
         }
-        subdomain:example.com { # Subdomains only match
+        domain:example.com { # Subdomains or domain match (matches example.com and *.example.com)
+            [...]
+        }
+        subdomain:example.com { # Subdomains only match (matches *.example.com)
             [...]
         }
         regexp:exampl?e.com { # Regex match
