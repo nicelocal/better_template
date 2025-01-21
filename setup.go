@@ -33,7 +33,7 @@ func setup(c *caddy.Controller) error {
 		if !c.Next() {
 			return plugin.Error("better_template", c.ArgErr())
 		}
-		e := &entry{make([]addressTtl, 0), make([]addressTtl, 0), ""}
+		e := &entry{make([]addressTtl, 0), make([]addressTtl, 0), "", 0}
 		for {
 			dst := c.Val()
 			if dst == "}" {
