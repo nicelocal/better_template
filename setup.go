@@ -1,13 +1,15 @@
 package better_template
 
 import (
-	"net"
 	"strconv"
 	"strings"
+
+	gotmpl "text/template"
 
 	"github.com/coredns/caddy"
 	"github.com/coredns/coredns/core/dnsserver"
 	"github.com/coredns/coredns/plugin"
+	"github.com/miekg/dns"
 	"github.com/v2fly/v2ray-core/v5/common/strmatcher"
 )
 
@@ -27,42 +29,74 @@ func setup(c *caddy.Controller) error {
 		}
 
 		m := c.Val()
-		if c.Next() && c.Val() != "{" {
-			return plugin.Error("better_template", c.SyntaxErr("{"))
-		}
-		if !c.Next() {
+
+		if !c.NextArg() {
 			return plugin.Error("better_template", c.ArgErr())
 		}
-		e := &entry{make([]addressTtl, 0), make([]addressTtl, 0), "", 0}
-		for {
-			dst := c.Val()
-			if dst == "}" {
-				c.NextLine()
-				break
-			}
-			ip := net.ParseIP(dst)
-			if ip == nil {
+		class, ok := dns.StringToClass[c.Val()]
+		if !ok {
+			return plugin.Error("better_template", c.Errf("invalid query class %s", c.Val()))
+		}
+
+		if !c.NextArg() {
+			return plugin.Error("better_template", c.ArgErr())
+		}
+		qtype, ok := dns.StringToType[c.Val()]
+		if !ok {
+			return plugin.Error("better_template", c.Errf("invalid RR class %s", c.Val()))
+		}
+
+		e := &entry{class, qtype, make([]*gotmpl.Template, 0), make([]*gotmpl.Template, 0), make([]*gotmpl.Template, 0), "", 0}
+
+		had := false
+		for c.NextBlock() {
+			had = true
+
+			switch c.Val() {
+			case "answer":
+				args := c.RemainingArgs()
+				if len(args) == 0 {
+					return plugin.Error("better_template", c.ArgErr())
+				}
+				for _, answer := range args {
+					tmpl, err := newTemplate("answer", answer)
+					if err != nil {
+						return plugin.Error("better_template", c.Errf("could not compile template: %s, %v", c.Val(), err))
+					}
+					e.answer = append(e.answer, tmpl)
+				}
+
+			case "additional":
+				args := c.RemainingArgs()
+				if len(args) == 0 {
+					return plugin.Error("better_template", c.ArgErr())
+				}
+				for _, additional := range args {
+					tmpl, err := newTemplate("additional", additional)
+					if err != nil {
+						return plugin.Error("better_template", c.Errf("could not compile template: %s, %v\n", c.Val(), err))
+					}
+					e.additional = append(e.additional, tmpl)
+				}
+
+			case "authority":
+				args := c.RemainingArgs()
+				if len(args) == 0 {
+					return plugin.Error("better_template", c.ArgErr())
+				}
+				for _, authority := range args {
+					tmpl, err := newTemplate("authority", authority)
+					if err != nil {
+						return plugin.Error("better_template", c.Errf("could not compile template: %s, %v\n", c.Val(), err))
+					}
+					e.authority = append(e.authority, tmpl)
+				}
+			default:
 				return plugin.Error("better_template", c.ArgErr())
 			}
-			ttl := uint32(60)
-			if c.NextArg() {
-				tmp, err := strconv.Atoi(c.Val())
-				if err != nil {
-					return plugin.Error("better_template", err)
-				}
-				if tmp > 2147483647 || ttl < 0 {
-					return plugin.Error("better_template", c.Err("Invalid TTL"))
-				}
-				ttl = uint32(tmp)
-			}
-			if temp := ip.To4(); temp != nil {
-				e.ipv4 = append(e.ipv4, addressTtl{temp, ttl})
-			} else {
-				e.ipv6 = append(e.ipv6, addressTtl{ip, ttl})
-			}
-			if !c.NextLine() {
-				return plugin.Error("better_template", c.ArgErr())
-			}
+		}
+		if !had {
+			c.Next()
 		}
 
 		t := strmatcher.Full
@@ -107,4 +141,11 @@ func setup(c *caddy.Controller) error {
 
 	// All OK, return a nil error.
 	return nil
+}
+
+func newTemplate(name, text string) (*gotmpl.Template, error) {
+	funcMap := gotmpl.FuncMap{
+		"parseInt": strconv.ParseUint,
+	}
+	return gotmpl.New(name).Funcs(funcMap).Parse(text)
 }

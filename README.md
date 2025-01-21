@@ -20,11 +20,13 @@ And use the following example Corefile:
         #
         # Fallthrough to the next plugin is always disabled if at least one block matches
 
-        example.com { # Exact match
-            192.168.1.1 [ TTL ]
-            ff::123 [ TTL ]
-            [...]
+        example.com IN A { # Exact match
+            answer "{{ .Name }} 60 IN A 192.168.1.1"
         }
+        example.com IN AAAA { # Exact match
+            answer "{{ .Name }} 60 IN AAAA ff::123"
+        }
+
         subdomain:example.com { # Subdomains only match (matches *.example.com)
             [...]
         }

@@ -4,12 +4,17 @@
 package better_template
 
 import (
+	"bytes"
 	"context"
 	"net"
 	"strings"
+	gotmpl "text/template"
 
 	"github.com/coredns/coredns/plugin"
+	"github.com/coredns/coredns/plugin/metadata"
+	"github.com/coredns/coredns/plugin/metrics"
 	clog "github.com/coredns/coredns/plugin/pkg/log"
+	"github.com/coredns/coredns/request"
 	"github.com/v2fly/v2ray-core/v5/common/strmatcher"
 
 	"github.com/miekg/dns"
@@ -24,12 +29,26 @@ type addressTtl struct {
 	ttl uint32
 }
 type entry struct {
-	ipv4 []addressTtl
-	ipv6 []addressTtl
+	qclass uint16
+	qtype  uint16
+
+	answer     []*gotmpl.Template
+	additional []*gotmpl.Template
+	authority  []*gotmpl.Template
 
 	isSubdomainMatch string
 
 	priority int
+}
+
+type templateData struct {
+	Name     string
+	Class    string
+	Type     string
+	Message  *dns.Msg
+	Question *dns.Question
+	Remote   string
+	md       map[string]metadata.Func
 }
 
 type BetterTemplate struct {
@@ -56,6 +75,13 @@ func (e *BetterTemplate) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *
 	chosenPriority := -1
 	for _, m := range matches {
 		entry := e.lookup[m]
+
+		if entry.qclass != dns.ClassANY && question.Qclass != dns.ClassANY && question.Qclass != entry.qclass {
+			continue
+		}
+		if entry.qtype != dns.TypeANY && question.Qtype != dns.TypeANY && question.Qtype != entry.qtype {
+			continue
+		}
 		if qName == entry.isSubdomainMatch {
 			continue
 		}
@@ -69,9 +95,21 @@ func (e *BetterTemplate) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *
 		return plugin.NextOrFailure(e.Name(), e.Next, ctx, w, r)
 	}
 
-	isV4 := question.Qtype == dns.TypeA
-	if !isV4 && question.Qtype != dns.TypeAAAA {
-		return dns.RcodeSuccess, nil
+	state := request.Request{W: w, Req: r}
+	data := &templateData{md: metadata.ValueFuncs(ctx), Remote: state.IP()}
+
+	data.Name = state.Name()
+	data.Question = &question
+	data.Message = state.Req
+	if question.Qclass != dns.ClassANY {
+		data.Class = dns.ClassToString[question.Qclass]
+	} else {
+		data.Class = dns.ClassToString[chosenEntry.qclass]
+	}
+	if question.Qtype != dns.TypeANY {
+		data.Type = dns.TypeToString[question.Qtype]
+	} else {
+		data.Type = dns.TypeToString[chosenEntry.qtype]
 	}
 
 	msg := new(dns.Msg)
@@ -79,30 +117,26 @@ func (e *BetterTemplate) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *
 	msg.Authoritative = true
 	msg.RecursionAvailable = true
 
-	if isV4 {
-		for _, ip := range chosenEntry.ipv4 {
-			msg.Answer = append(msg.Answer, &dns.A{
-				Hdr: dns.RR_Header{
-					Name:   question.Name,
-					Rrtype: dns.TypeA,
-					Class:  question.Qclass,
-					Ttl:    ip.ttl,
-				},
-				A: ip.ip,
-			})
+	for _, answer := range chosenEntry.answer {
+		rr, err := executeRRTemplate(metrics.WithServer(ctx), metrics.WithView(ctx), "answer", answer, data)
+		if err != nil {
+			return dns.RcodeServerFailure, err
 		}
-	} else {
-		for _, ip := range chosenEntry.ipv6 {
-			msg.Answer = append(msg.Answer, &dns.AAAA{
-				Hdr: dns.RR_Header{
-					Name:   question.Name,
-					Rrtype: dns.TypeAAAA,
-					Class:  question.Qclass,
-					Ttl:    ip.ttl,
-				},
-				AAAA: ip.ip,
-			})
+		msg.Answer = append(msg.Answer, rr)
+	}
+	for _, additional := range chosenEntry.additional {
+		rr, err := executeRRTemplate(metrics.WithServer(ctx), metrics.WithView(ctx), "additional", additional, data)
+		if err != nil {
+			return dns.RcodeServerFailure, err
 		}
+		msg.Extra = append(msg.Extra, rr)
+	}
+	for _, authority := range chosenEntry.authority {
+		rr, err := executeRRTemplate(metrics.WithServer(ctx), metrics.WithView(ctx), "authority", authority, data)
+		if err != nil {
+			return dns.RcodeServerFailure, err
+		}
+		msg.Ns = append(msg.Ns, rr)
 	}
 
 	w.WriteMsg(msg)
@@ -112,3 +146,16 @@ func (e *BetterTemplate) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *
 
 // Name implements the Handler interface.
 func (e *BetterTemplate) Name() string { return "better_template" }
+
+func executeRRTemplate(server, view, section string, template *gotmpl.Template, data *templateData) (dns.RR, error) {
+	buffer := &bytes.Buffer{}
+	err := template.Execute(buffer, data)
+	if err != nil {
+		return nil, err
+	}
+	rr, err := dns.NewRR(buffer.String())
+	if err != nil {
+		return rr, err
+	}
+	return rr, nil
+}
