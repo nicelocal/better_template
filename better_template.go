@@ -28,6 +28,8 @@ type entry struct {
 	ipv6 []addressTtl
 
 	isSubdomainMatch string
+
+	priority int
 }
 
 type BetterTemplate struct {
@@ -50,16 +52,20 @@ func (e *BetterTemplate) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *
 		return plugin.NextOrFailure(e.Name(), e.Next, ctx, w, r)
 	}
 
-	entries := make([]*entry, 0, len(matches))
+	var chosenEntry *entry
+	chosenPriority := -1
 	for _, m := range matches {
 		entry := e.lookup[m]
 		if qName == entry.isSubdomainMatch {
 			continue
 		}
-		entries = append(entries, entry)
+		if entry.priority > chosenPriority {
+			chosenEntry = entry
+			chosenPriority = entry.priority
+		}
 	}
 
-	if len(entries) == 0 {
+	if chosenEntry == nil {
 		return plugin.NextOrFailure(e.Name(), e.Next, ctx, w, r)
 	}
 
@@ -73,31 +79,29 @@ func (e *BetterTemplate) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *
 	msg.Authoritative = true
 	msg.RecursionAvailable = true
 
-	for _, entry := range entries {
-		if isV4 {
-			for _, ip := range entry.ipv4 {
-				msg.Answer = append(msg.Answer, &dns.A{
-					Hdr: dns.RR_Header{
-						Name:   question.Name,
-						Rrtype: dns.TypeA,
-						Class:  question.Qclass,
-						Ttl:    ip.ttl,
-					},
-					A: ip.ip,
-				})
-			}
-		} else {
-			for _, ip := range entry.ipv6 {
-				msg.Answer = append(msg.Answer, &dns.AAAA{
-					Hdr: dns.RR_Header{
-						Name:   question.Name,
-						Rrtype: dns.TypeAAAA,
-						Class:  question.Qclass,
-						Ttl:    ip.ttl,
-					},
-					AAAA: ip.ip,
-				})
-			}
+	if isV4 {
+		for _, ip := range chosenEntry.ipv4 {
+			msg.Answer = append(msg.Answer, &dns.A{
+				Hdr: dns.RR_Header{
+					Name:   question.Name,
+					Rrtype: dns.TypeA,
+					Class:  question.Qclass,
+					Ttl:    ip.ttl,
+				},
+				A: ip.ip,
+			})
+		}
+	} else {
+		for _, ip := range chosenEntry.ipv6 {
+			msg.Answer = append(msg.Answer, &dns.AAAA{
+				Hdr: dns.RR_Header{
+					Name:   question.Name,
+					Rrtype: dns.TypeAAAA,
+					Class:  question.Qclass,
+					Ttl:    ip.ttl,
+				},
+				AAAA: ip.ip,
+			})
 		}
 	}
 

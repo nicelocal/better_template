@@ -66,19 +66,24 @@ func setup(c *caddy.Controller) error {
 		}
 
 		t := strmatcher.Full
-		if strings.HasPrefix(m, "regexp:") {
-			t = strmatcher.Regex
-			m = m[7:]
-		} else if strings.HasPrefix(m, "keyword:") {
-			t = strmatcher.Substr
-			m = m[8:]
-		} else if strings.HasPrefix(m, "subdomain:") {
+		e.priority = 4
+		if strings.HasPrefix(m, "subdomain:") {
 			t = strmatcher.Domain
 			m = m[10:]
 			e.isSubdomainMatch = m
+			e.priority = 3
 		} else if strings.HasPrefix(m, "domain:") {
 			t = strmatcher.Domain
 			m = m[7:]
+			e.priority = 2
+		} else if strings.HasPrefix(m, "regexp:") {
+			t = strmatcher.Regex
+			m = m[7:]
+			e.priority = 1
+		} else if strings.HasPrefix(m, "keyword:") {
+			t = strmatcher.Substr
+			m = m[8:]
+			e.priority = 0
 		}
 
 		matcher, err := t.New(m)

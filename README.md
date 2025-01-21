@@ -15,7 +15,9 @@ And use the following example Corefile:
 ```
 . {
     better_template {
-        # Fallthrough to the next match block is always enabled for multiple matching blocks
+        # Fallthrough to the next match block is always disabled for multiple matching blocks
+        # Priority: exact > subdomain > domain > regexp > keyword
+        #
         # Fallthrough to the next plugin is always disabled if at least one block matches
 
         example.com { # Exact match
@@ -23,10 +25,10 @@ And use the following example Corefile:
             ff::123 [ TTL ]
             [...]
         }
-        domain:example.com { # Subdomains or domain match (matches example.com and *.example.com)
+        subdomain:example.com { # Subdomains only match (matches *.example.com)
             [...]
         }
-        subdomain:example.com { # Subdomains only match (matches *.example.com)
+        domain:example.com { # Subdomains or domain match (matches example.com and *.example.com)
             [...]
         }
         regexp:exampl?e.com { # Regex match
