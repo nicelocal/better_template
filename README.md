@@ -39,6 +39,10 @@ And use the following example Corefile:
         keyword:le.com { # Keyword match (domain contains)
             [...]
         }
+
+
+        example.com ANY ANY { # Exact match, return nothing
+        }
     }
 
     forward . 8.8.8.8

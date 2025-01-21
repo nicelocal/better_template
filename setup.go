@@ -48,10 +48,7 @@ func setup(c *caddy.Controller) error {
 
 		e := &entry{class, qtype, make([]*gotmpl.Template, 0), make([]*gotmpl.Template, 0), make([]*gotmpl.Template, 0), "", 0}
 
-		had := false
 		for c.NextBlock() {
-			had = true
-
 			switch c.Val() {
 			case "answer":
 				args := c.RemainingArgs()
@@ -95,9 +92,6 @@ func setup(c *caddy.Controller) error {
 				return plugin.Error("better_template", c.ArgErr())
 			}
 		}
-		if !had {
-			c.Next()
-		}
 
 		t := strmatcher.Full
 		e.priority = 4
@@ -128,6 +122,9 @@ func setup(c *caddy.Controller) error {
 		lookup[domainMatcher.Add(matcher)] = e
 
 		if c.Val() == "}" && !c.Next() {
+			break
+		}
+		if c.Val() == "}" {
 			break
 		}
 	}
