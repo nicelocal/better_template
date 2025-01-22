@@ -28,7 +28,7 @@ func setup(c *caddy.Controller) error {
 			c.Next()
 		}
 
-		m := c.Val()
+		m := strings.ToLower(c.Val())
 
 		if !c.NextArg() {
 			return plugin.Error("better_template", c.ArgErr())

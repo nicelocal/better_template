@@ -65,7 +65,7 @@ func (e *BetterTemplate) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *
 	if question.Qclass != dns.ClassINET {
 		return plugin.NextOrFailure(e.Name(), e.Next, ctx, w, r)
 	}
-	qName := strings.TrimSuffix(question.Name, ".")
+	qName := strings.ToLower(strings.TrimSuffix(question.Name, "."))
 	matches := e.matcher.Match(qName)
 	if len(matches) == 0 {
 		return plugin.NextOrFailure(e.Name(), e.Next, ctx, w, r)
